@@ -1,6 +1,7 @@
 // LeveIA Agents foundation server. No public sign-up or production access until auth/persistence is complete.
 import {createServer} from 'node:http';
 import {SessionStore} from './auth.mjs';
+import {renderAdminPanel} from './admin.mjs';
 import {getScopedAssistant,createAssistantForTenant} from './domain.mjs';
 
 export function makeApp({assistants=[],sessions=new SessionStore()}={}){
@@ -16,6 +17,13 @@ export function makeApp({assistants=[],sessions=new SessionStore()}={}){
     const token=header.startsWith('Bearer ')?header.slice(7):'';
     const principal=sessions.get(token);
     if(!principal){res.writeHead(401);res.end(JSON.stringify({error:'UNAUTHENTICATED'}));return;}
+    if(path==='/admin'&&req.method==='GET'){
+      if(principal.role!=='ADMIN'){res.writeHead(403);res.end(JSON.stringify({error:'FORBIDDEN'}));return;}
+      res.setHeader('Content-Type','text/html; charset=utf-8');
+      res.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+      res.setHeader('X-Content-Type-Options','nosniff');
+      res.writeHead(200);res.end(renderAdminPanel({principal,assistants}));return;
+    }
     const match=path.match(/^\/api\/assistants\/([a-z0-9_-]+)$/);
     if(match&&req.method==='GET'){
       try{
